@@ -18,6 +18,28 @@
 float sonarF_val, sonarFL_val, sonarFR_val, sonarL_val, sonarR_val;
 double roll, pitch, yaw;
 double d = 0.05; // distance between consecutive sonars
+// Sigmas
+float sigma_omega =  0.002;
+float sigma_length = 0.01;
+float sigma_acc = 0.002;
+float sigma_theta = 0.002;
+float P = 0,PP;
+//State vector
+float x[5]; // =[x,y,theta,v,omega]
+//initialize
+x =[0.0,0.0,0.0,0.0,0.0];
+//measurement convariance
+float R[8][8] = {{pow(sigma_length,2),0,0,0,0,0,0,0},
+{0,pow(sigma_length,2),0,0,0,0,0,0},
+{0,0,pow(sigma_length,2),0,0,0,0,0},
+{0,0,0,pow(sigma_length,2),0,0,0,0},
+{0,0,0,0,pow(sigma_length,2),0,0,0},
+{0,0,0,0,0,pow(sigma_length,2),0,0},
+{0,0,0,0,0,0,pow(sigma_length,2),0},
+{0,0,0,0,0,0,0,pow(sigma_length,2)}};
+
+
+
 
 void sonarFrontCallback(const sensor_msgs::Range& msg){
 
@@ -196,6 +218,88 @@ int main(int argc, char **argv)
     velocity.linear.x = linX;
     velocity.angular.z = angZ;
     velocity_pub.publish(velocity);
+
+    //Kalman filter
+    time = counterTotall;
+    x[0] = q[0];//x
+    x[1] = q[1];//y
+    x[2] = q[3];//w
+    x[4] = velocity_pub;
+
+    th = x[2];
+    dt = counterTotall;
+    float Cw[4][4];
+Cw[0][0] = 1/4 *cos(th)*cos(th)*pow(dt,4)*sigma_acc*sigma_acc;
+Cw[0][1] = 1/4 *cos(th)*sin(th)*pow(dt,4*sigma_acc*sigma_acc;
+Cw[0][2] = 0;
+Cw[0][3] = 1/2 *cos(th)*pow(dt,3)*sigma_acc*sigma_acc;
+
+Cw[1][0] = 1/4 *sin(th)*cos(th)*pow(dt,4)*sigma_acc*sigma_acc;
+Cw[1][1] = 1/4 *sin(th)*sin(th)*pow(dt,4*sigma_acc*sigma_acc;
+Cw[1][2] = 0;
+Cw[1][3] = 1/2 *sin(th)*pow(dt,3)*sigma_acc*sigma_acc;
+
+Cw[2][0] = 0;
+Cw[2][1] = 0;
+Cw[2][2] = dt*dt*sigma_omega*sigma_omega;
+Cw[2][3] = 0;
+
+Cw[3][0] = 1/2 * cos(th)*pow(dt,3)*sigma_acc*sigma_acc;
+Cw[3][1] = 1/2 *sin(th)*pow(dt,3)*sigma_acc*sigma_acc;
+Cw[3][2] = 0;
+Cw[3][3] = dt*dt*sigma_acc*sigma_acc;
+
+
+
+float tmplength;
+tmplength = (L4/2 - L1)*(L4/2 - L1) + (L4 - L1)*(L4 - L1);
+tmplength = sqrt(tmplength);
+float z[5][4];
+z[0][0] = (L4+lfron)*cos(th);
+z[0][1] = (L4+lfron)*sin(th);
+z[0][2] = 0;
+z[0][3] = 0;
+
+z[1][0] = (tmpLength+lfrontl)*cos(th+45);
+z[1][1] = (tmpLength+lfrontl)*sin(th+45);
+z[1][2] = 0;
+z[1][3] = 0;
+
+z[2][0] = (lfrontr)*cos(th+45);
+z[2][1] = (lfrontr)*sin(th+45);
+z[2][2] = 0;
+z[2][3] = 0;
+
+z[3][0] = (L2+L4/2+lleft)*sin(th);
+z[3][1] = (L2+L4/2+lleft)*cos(th);
+z[3][2] = 0;
+z[3][3] = 0;
+
+z[3][0] = (L2+L4/2+lright)*sin(th);
+z[3][1] = (L2+L4/2+lright)*cos(th);
+z[3][2] = 0;
+z[3][3] = 0;
+
+float B[4][2];
+B[0][0]=cos(th)*dt*dt/2;
+B[0][1] = 0;
+
+B[1][0] = sin(th)*dt*dt/2;
+B[1][1] = 0;
+
+B[2][0] = 0;
+B[2][1] = dt;
+
+B[3][0]= dt;
+B[3][1] = 0;
+
+
+
+PP = A*P*A.T + Cw;
+float K;
+K = PP*pow(P+Cv,-1);
+float x_pred;
+x_pred = A*x + B*
 
     loop_rate.sleep();
     ros::spinOnce();
